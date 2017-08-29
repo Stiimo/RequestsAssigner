@@ -143,7 +143,7 @@ class Route:
             volume += (item[3] or 0)
         self.weight = 1 - weight
         self.volume = 1 - volume
-        self.boxQty = 30 - boxQty
+        self.boxQty = 100 - boxQty
 
     def set_departure(self, cursor):
         cursor.execute("SELECT firstPointArrivalTime, daysOfWeek FROM routes WHERE routeID=%s", [self.route_id])

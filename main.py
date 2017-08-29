@@ -4,7 +4,7 @@ import mysql.connector as mc
 from route import *
 
 if __name__ == "__main__":
-    connection = mc.connect(user="root", db="", password="aftR179Kp")
+    connection = mc.connect(host="185.75.182.94", user="root", db="", password="aftR179Kp")
     cursor = connection.cursor()
     cursor.execute("USE `transmaster_transport_db`")
     empty_requests = get_empty_requests(cursor)
