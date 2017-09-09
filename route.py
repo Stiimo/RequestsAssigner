@@ -89,10 +89,32 @@ class Route:
         self.set_departure(cursor)
 
     def get_requests(self, cursor):
-        # TODO finish
-        cursor.execute("SELECT requestID, boxQty, weight, volume FROM requests WHERE routeListID=%s",
+        cursor.execute("SELECT requestID, destinationPointID, warehousePointID,"
+                       "deliveryDate, boxQty, weight, volume FROM requests WHERE routeListID=%s",
                        [self.route_list_id])
-        self.urgent = cursor.fetchall()
+        requests = cursor.fetchall()
+        for item in requests:
+            possible_routes = get_possible_routes(cursor, item)
+            routes_count = 0
+            for route in possible_routes:
+                days_count = 0
+                for day in route[2]:
+                    today = date.today().weekday()
+                    start_time = datetime.now()
+                    days = day_to_int[day] - today
+                    if days < 0 or (days == 0 and route[1] - start_time.time() < timedelta(hours=1)):
+                        days += 7
+                    start_time += timedelta(days=days)
+                    start_time = datetime.combine(start_time.date(), route[1])
+                    if in_time(cursor, item, route[0], start_time):
+                        days_count += 1
+                routes_count += days_count
+                if routes_count > 1:
+                    break
+            if routes_count > 1:
+                self.assigned.append(item)
+            else:
+                self.urgent.append(item)
 
     def filter_requests(self, cursor, empty_requests):
         for item in list(empty_requests):

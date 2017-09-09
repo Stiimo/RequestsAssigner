@@ -15,33 +15,32 @@ if __name__ == "__main__":
         routes[item[1]].filter_requests(empty_requests, cursor)
         routes[item[1]].get_requests(cursor)
         routes[item[1]].calculate_capacities()
-    if len(empty_requests):
-        for item in empty_requests:
-            possible_routes = get_possible_routes(cursor, item)
-            route_id = possible_routes[0][0]
-            if route_id not in routes.keys():
-                routes[route_id] = Route(cursor, route_id)
-                routes[route_id].calculate_capacities()
-            routes_count = 0
-            for route in possible_routes:
-                days_count = 0
-                for day in route[2]:
-                    today = date.today().weekday()
-                    start_time = datetime.now()
-                    days = day_to_int[day] - today
-                    if days < 0 or (days == 0 and route[1] - start_time.time() < timedelta(hours=1)):
-                        days += 7
-                    start_time += timedelta(days=days)
-                    start_time = datetime.combine(start_time.date(), route[1])
-                    if in_time(cursor, item, route[0], start_time):
-                        days_count += 1
-                routes_count += days_count
-                if routes_count > 1:
-                    break
+    for item in empty_requests:
+        possible_routes = get_possible_routes(cursor, item)
+        route_id = possible_routes[0][0]
+        if route_id not in routes.keys():
+            routes[route_id] = Route(cursor, route_id)
+            routes[route_id].calculate_capacities()
+        routes_count = 0
+        for route in possible_routes:
+            days_count = 0
+            for day in route[2]:
+                today = date.today().weekday()
+                start_time = datetime.now()
+                days = day_to_int[day] - today
+                if days < 0 or (days == 0 and route[1] - start_time.time() < timedelta(hours=1)):
+                    days += 7
+                start_time += timedelta(days=days)
+                start_time = datetime.combine(start_time.date(), route[1])
+                if in_time(cursor, item, route[0], start_time):
+                    days_count += 1
+            routes_count += days_count
             if routes_count > 1:
-                routes[route_id].to_assign.append(item)
-            else:
-                routes[route_id].to_urgent.append(item)
+                break
+        if routes_count > 1:
+            routes[route_id].to_assign.append(item)
+        else:
+            routes[route_id].to_urgent.append(item)
     for id, route in routes.items():
         route.assign_requests(cursor, connection, id)
     connection.close()
