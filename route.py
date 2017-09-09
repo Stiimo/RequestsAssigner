@@ -18,10 +18,9 @@ day_to_int = {
 def get_empty_requests(cursor):
     cursor.execute("SELECT `requestID`, `destinationPointID`, `warehousePointID`,"
                    "`deliveryDate`, `boxQty`, `weight`, `volume`"
-                   "FROM `requests_tmp` WHERE (`requestStatusID`=%s OR `requestStatusID`=%s) AND `routeListID` IS NULL",
+                   "FROM `requests` WHERE (`requestStatusID`=%s OR `requestStatusID`=%s) AND `routeListID` IS NULL",
                    ("CHECK_PASSED", "READY"))
     return cursor.fetchall()
-
 
 
 def get_route_lists(cursor):
@@ -46,8 +45,18 @@ def get_possible_routes(cursor, request):
     return routes
 
 
-def in_time(cursor, request, route):
-    pass
+def in_time(cursor, request, route_id, cur_time):
+    cursor.execute("SELECT sortOrder, timeForLoadingOperations, pointID FROM route_points"
+                   "WHERE routeID=%s", [route_id])
+    points = cursor.fetchall().sort(key=lambda x: x[0])
+    for i in range(1, len(points)):
+        cursor.execute("SELECT timeForDistance FROM relations_between_route_points WHERE"
+                       "routePointIDFirst=%s AND routePointIDSecond=%s", [points[i-1][2], points[i][2]])
+        delta = timedelta(minutes=cursor.fetchone()[0]+points[i][1])
+        cur_time += delta
+        if points[i][2] == request[1]:
+            break
+    return cur_time <= request[2]
 
 
 def nearest(departure, days):
@@ -79,8 +88,9 @@ class Route:
         self.days = None
         self.set_departure(cursor)
 
-    def get_urgent_requests(self, cursor):
-        cursor.execute("SELECT requestID, boxQty, weight, volume FROM requests_tmp WHERE routeListID=%s",
+    def get_requests(self, cursor):
+        # TODO finish
+        cursor.execute("SELECT requestID, boxQty, weight, volume FROM requests WHERE routeListID=%s",
                        [self.route_list_id])
         self.urgent = cursor.fetchall()
 
