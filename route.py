@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, time
 import numpy as np
 
 
@@ -16,15 +16,15 @@ day_to_int = {
 
 
 def get_empty_requests(cursor):
-    cursor.execute("SELECT `requestID`, `destinationPointID`, `warehousePointID`,"
-                   "`deliveryDate`, `boxQty`, `weight`, `volume`"
-                   "FROM `requests` WHERE (`requestStatusID`=%s OR `requestStatusID`=%s) AND `routeListID` IS NULL",
+    cursor.execute("SELECT requestID, destinationPointID, deliveryDate, "
+                   "boxQty, weight, volume, warehousePointID "
+                   "FROM requests WHERE (requestStatusID=%s OR requestStatusID=%s) AND routeListID IS NULL",
                    ("CHECK_PASSED", "READY"))
     return cursor.fetchall()
 
 
 def get_route_lists(cursor):
-    cursor.execute("SELECT routeListID, routeID FROM route_lists_tmp WHERE status=%s", ["CREATED"])
+    cursor.execute("SELECT routeListID, routeID FROM route_lists WHERE status=%s", ["CREATED"])
     return cursor.fetchall()
 
 
@@ -34,7 +34,7 @@ def get_possible_routes(cursor, request):
     routes = list()
     for route_id in route_ids:
         cursor.execute("SELECT * FROM route_points WHERE routeID=%s and pointID=%s",
-                       [route_id[0], request[2]])
+                       [route_id[0], request[6]])
         if len(cursor.fetchall()):
             cursor.execute("SELECT firstPointArrivalTime, daysOfWeek FROM routes WHERE routeID=%s", [route_id[0]])
             data = cursor.fetchone()
@@ -46,11 +46,12 @@ def get_possible_routes(cursor, request):
 
 
 def in_time(cursor, request, route_id, cur_time):
-    cursor.execute("SELECT sortOrder, timeForLoadingOperations, pointID FROM route_points"
+    cursor.execute("SELECT sortOrder, timeForLoadingOperations, pointID FROM route_points "
                    "WHERE routeID=%s", [route_id])
-    points = cursor.fetchall().sort(key=lambda x: x[0])
+    points = cursor.fetchall()
+    points.sort(key=lambda x: x[0])
     for i in range(1, len(points)):
-        cursor.execute("SELECT timeForDistance FROM relations_between_route_points WHERE"
+        cursor.execute("SELECT timeForDistance FROM relations_between_route_points WHERE "
                        "routePointIDFirst=%s AND routePointIDSecond=%s", [points[i-1][2], points[i][2]])
         delta = timedelta(minutes=cursor.fetchone()[0]+points[i][1])
         cur_time += delta
@@ -89,8 +90,8 @@ class Route:
         self.set_departure(cursor)
 
     def get_requests(self, cursor):
-        cursor.execute("SELECT requestID, destinationPointID, warehousePointID,"
-                       "deliveryDate, boxQty, weight, volume FROM requests WHERE routeListID=%s",
+        cursor.execute("SELECT requestID, destinationPointID, deliveryDate, "
+                       "boxQty, weight, volume, warehousePointID FROM requests WHERE routeListID=%s",
                        [self.route_list_id])
         requests = cursor.fetchall()
         for item in requests:
@@ -102,10 +103,12 @@ class Route:
                     today = date.today().weekday()
                     start_time = datetime.now()
                     days = day_to_int[day] - today
-                    if days < 0 or (days == 0 and route[1] - start_time.time() < timedelta(hours=1)):
+                    start = timedelta(hours=start_time.hour, minutes=start_time.minute,
+                                      seconds=start_time.second, microseconds=start_time.microsecond)
+                    if days < 0 or (days == 0 and route[1] - start < timedelta(hours=1)):
                         days += 7
                     start_time += timedelta(days=days)
-                    start_time = datetime.combine(start_time.date(), route[1])
+                    start_time = datetime.combine(start_time.date(), time()) + route[1]
                     if in_time(cursor, item, route[0], start_time):
                         days_count += 1
                 routes_count += days_count
@@ -118,7 +121,7 @@ class Route:
 
     def filter_requests(self, cursor, empty_requests):
         for item in list(empty_requests):
-            routes = get_possible_routes(cursor, item)
+            routes = list(map(lambda x: x[0], get_possible_routes(cursor, item)))
             if self.route_id in routes:
                 self.to_urgent.append(item)
                 empty_requests.remove(item)
@@ -129,7 +132,7 @@ class Route:
             departure = date.today()+timedelta(days=nearest(self.departure, self.days))
             id_external = ''.join([str(np.random.randint(0, 10)) for _ in range(8)])
             list_number = ''.join([str(np.random.randint(0, 10)) for _ in range(10)])
-            cursor.execute("INSERT INTO route_lists (routeListIDExternal, dataSourceID, routeListNumber,"
+            cursor.execute("INSERT INTO route_lists (routeListIDExternal, dataSourceID, routeListNumber, "
                            "creationDate, departureDate, status, routeID) VALUES (%s, %s, %s, %s, %s, %s, %s)",
                            [id_external, "LOGIST_1C", list_number, date.today().strftime("%Y-%m-%d"),
                             departure.strftime("%Y-%m-%d"), "CREATED", route_id])
@@ -148,7 +151,7 @@ class Route:
                 self.decrease_capacities(item)
             else:
                 self.assigned.remove(item)
-                cursor.execute("UPDATE requests SET routeListID=%s WHERE requestID=%s", [self.route_list_id, None])
+                cursor.execute("UPDATE requests SET routeListID=%s WHERE requestID=%s", [None, item[0]])
                 connection.commit()
         for item in sorted(self.to_assign, key=lambda x: x[4], reverse=True):
             if self.check_capacities(item):
@@ -158,24 +161,26 @@ class Route:
                 connection.commit()
 
     def check_capacities(self, item):
-        return self.weight - (item[5] or 0) >= 0 and self.volume - (item[6] or 0) >= 0 and self.boxQty - (item[4] or 0) >= 0
+        return self.boxQty - (item[3] or 0) >= 0 and self.weight - (item[4] or 0) >= 0 and self.volume - (item[5] or 0) >= 0
 
     def decrease_capacities(self, item):
-        self.boxQty -= (item[4] or 0)
-        self.weight -= (item[5] or 0)
-        self.volume -= (item[6] or 0)
+        self.boxQty -= (item[3] or 0)
+        self.weight -= (item[4] or 0)
+        self.volume -= (item[5] or 0)
 
-    def calculate_capacities(self):
+    def calculate_capacities(self, cursor):
         weight = 0
         volume = 0
         boxQty = 0
         for item in self.urgent:
-            boxQty += (item[1] or 0)
-            weight += (item[2] or 0)
-            volume += (item[3] or 0)
-        self.weight = 1 - weight
-        self.volume = 1 - volume
-        self.boxQty = 100 - boxQty
+            boxQty += (item[3] or 0)
+            weight += (item[4] or 0)
+            volume += (item[5] or 0)
+        cursor.execute("SELECT boxQty, weight, volume FROM routes WHERE routeID=%s", [self.route_id])
+        capacities = cursor.fetchone()
+        self.boxQty = (capacities[0] or 1) - boxQty
+        self.weight = (capacities[1] or 1) - weight
+        self.volume = (capacities[2] or 1) - volume
 
     def set_departure(self, cursor):
         cursor.execute("SELECT firstPointArrivalTime, daysOfWeek FROM routes WHERE routeID=%s", [self.route_id])

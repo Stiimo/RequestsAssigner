@@ -12,9 +12,9 @@ if __name__ == "__main__":
     routes = dict()
     for item in route_lists:
         routes[item[1]] = Route(cursor, item[1], item[0])
-        routes[item[1]].filter_requests(empty_requests, cursor)
+        routes[item[1]].filter_requests(cursor, empty_requests)
         routes[item[1]].get_requests(cursor)
-        routes[item[1]].calculate_capacities()
+        routes[item[1]].calculate_capacities(cursor)
     for item in empty_requests:
         possible_routes = get_possible_routes(cursor, item)
         route_id = possible_routes[0][0]
@@ -28,10 +28,12 @@ if __name__ == "__main__":
                 today = date.today().weekday()
                 start_time = datetime.now()
                 days = day_to_int[day] - today
-                if days < 0 or (days == 0 and route[1] - start_time.time() < timedelta(hours=1)):
+                start = timedelta(hours=start_time.hour, minutes=start_time.minute,
+                                  seconds=start_time.second, microseconds=start_time.microsecond)
+                if days < 0 or (days == 0 and route[1] - start < timedelta(hours=1)):
                     days += 7
                 start_time += timedelta(days=days)
-                start_time = datetime.combine(start_time.date(), route[1])
+                start_time = datetime.combine(start_time.date(), time()) + route[1]
                 if in_time(cursor, item, route[0], start_time):
                     days_count += 1
             routes_count += days_count
