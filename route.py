@@ -121,10 +121,32 @@ class Route:
 
     def filter_requests(self, cursor, empty_requests):
         for item in list(empty_requests):
-            routes = list(map(lambda x: x[0], get_possible_routes(cursor, item)))
+            possible_routes = get_possible_routes(cursor, item)
+            routes = list(map(lambda x: x[0], possible_routes))
             if self.route_id in routes:
-                self.to_urgent.append(item)
                 empty_requests.remove(item)
+                routes_count = 0
+                for route in possible_routes:
+                    days_count = 0
+                    for day in route[2]:
+                        today = date.today().weekday()
+                        start_time = datetime.now()
+                        days = day_to_int[day] - today
+                        start = timedelta(hours=start_time.hour, minutes=start_time.minute,
+                                          seconds=start_time.second, microseconds=start_time.microsecond)
+                        if days < 0 or (days == 0 and route[1] - start < timedelta(hours=1)):
+                            days += 7
+                        start_time += timedelta(days=days)
+                        start_time = datetime.combine(start_time.date(), time()) + route[1]
+                        if in_time(cursor, item, route[0], start_time):
+                            days_count += 1
+                    routes_count += days_count
+                    if routes_count > 1:
+                        break
+                if routes_count > 1:
+                    self.to_assign.append(item)
+                else:
+                    self.to_urgent.append(item)
 
     def assign_requests(self, cursor, connection, route_id):
         np.random.seed(int(datetime.now().timestamp()))
@@ -140,20 +162,20 @@ class Route:
             cursor.execute("SELECT routeListID FROM route_lists WHERE routeID=%s", [route_id])
             res = cursor.fetchall()
             self.route_list_id = res[-1][0]
-        for item in sorted(self.to_urgent, key=lambda x: x[4], reverse=True):
+        for item in sorted(self.to_urgent, key=lambda x: x[3], reverse=True):
             if self.check_capacities(item):
                 self.urgent.append(item)
                 self.decrease_capacities(item)
                 cursor.execute("UPDATE requests SET routeListID=%s WHERE requestID=%s", [self.route_list_id, item[0]])
                 connection.commit()
-        for item in sorted(self.assigned, key=lambda x: x[4], reverse=True):
+        for item in sorted(self.assigned, key=lambda x: x[3], reverse=True):
             if self.check_capacities(item):
                 self.decrease_capacities(item)
             else:
                 self.assigned.remove(item)
                 cursor.execute("UPDATE requests SET routeListID=%s WHERE requestID=%s", [None, item[0]])
                 connection.commit()
-        for item in sorted(self.to_assign, key=lambda x: x[4], reverse=True):
+        for item in sorted(self.to_assign, key=lambda x: x[3], reverse=True):
             if self.check_capacities(item):
                 self.assigned.append(item)
                 self.decrease_capacities(item)
