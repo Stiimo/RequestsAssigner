@@ -111,6 +111,9 @@ class Route:
                     start_time = datetime.combine(start_time.date(), time()) + route[1]
                     if in_time(cursor, item, route[0], start_time):
                         days_count += 1
+                    start_time += timedelta(days=7)
+                    if in_time(cursor, item, route[0], start_time):
+                        days_count += 1
                 routes_count += days_count
                 if routes_count > 1:
                     break
@@ -138,6 +141,9 @@ class Route:
                             days += 7
                         start_time += timedelta(days=days)
                         start_time = datetime.combine(start_time.date(), time()) + route[1]
+                        if in_time(cursor, item, route[0], start_time):
+                            days_count += 1
+                        start_time += timedelta(days=7)
                         if in_time(cursor, item, route[0], start_time):
                             days_count += 1
                     routes_count += days_count
