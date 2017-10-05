@@ -13,14 +13,31 @@ day_to_int = {
     "saturday": 5,
     "sunday": 6
 }
+routeListIDExternal = 0
+routeListNumber = 0
 
 
 def get_empty_requests(cursor):
     cursor.execute("SELECT requestID, destinationPointID, deliveryDate, "
-                   "boxQty, weight, volume, warehousePointID "
+                   "boxQty, weight, volume, storage "
                    "FROM requests WHERE (requestStatusID=%s OR requestStatusID=%s) AND routeListID IS NULL",
                    ("CHECK_PASSED", "READY"))
-    return cursor.fetchall()
+    requests = cursor.fetchall()
+    for i in range(len(requests)):
+        requests[i] = list(requests[i])
+    for request in list(requests):
+        cursor.execute("SELECT point_id FROM storages_to_points WHERE storage=%s", [request[6]])
+        try:
+            request[6] = cursor.fetchone()[0]
+        except:
+            requests.remove(request)
+        if request[2] is None:
+            cursor.execute("SELECT requestDate FROM requests WHERE requestID=%s", [request[0]])
+            date = cursor.fetchone()[0]
+            request[2] = datetime(date.year, date.month, date.day) + timedelta(days=2)
+        if request[3] is None:
+            request[3] = 1 # TODO check
+    return requests
 
 
 def get_route_lists(cursor):
@@ -29,7 +46,7 @@ def get_route_lists(cursor):
 
 
 def get_possible_routes(cursor, request):
-    cursor.execute("SELECT routeID FROM route_points WHERE pointID=%s", [request[1]])
+    cursor.execute("SELECT routeId FROM delivery_route_points WHERE pointId=%s", [request[1]])
     route_ids = cursor.fetchall()
     routes = list()
     for route_id in route_ids:
@@ -46,19 +63,9 @@ def get_possible_routes(cursor, request):
 
 
 def in_time(cursor, request, route_id, cur_time):
-    cursor.execute("SELECT sortOrder, timeForLoadingOperations, pointID FROM route_points "
-                   "WHERE routeID=%s", [route_id])
-    points = cursor.fetchall()
-    points.sort(key=lambda x: x[0])
-    for i in range(1, len(points)):
-        cursor.execute("SELECT timeForDistance FROM relations_between_route_points WHERE "
-                       "routePointIDFirst=%s AND routePointIDSecond=%s", [points[i-1][2], points[i][2]])
-        delta = timedelta(minutes=cursor.fetchone()[0]+points[i][1])
-        cur_time += delta
-        if points[i][2] == request[1]:
-            break
+    # TODO get time from table
+    cur_time += timedelta(minutes=1440)
     return cur_time <= request[2]
-
 
 def nearest(departure, days):
     today = date.today().weekday()
@@ -91,7 +98,8 @@ class Route:
 
     def get_requests(self, cursor):
         cursor.execute("SELECT requestID, destinationPointID, deliveryDate, "
-                       "boxQty, weight, volume, warehousePointID FROM requests WHERE routeListID=%s",
+                       "boxQty, weight, volume, warehousePointID, requestStatusID "
+                       "FROM requests WHERE routeListID=%s",
                        [self.route_list_id])
         requests = cursor.fetchall()
         for item in requests:
@@ -155,14 +163,16 @@ class Route:
                     self.to_urgent.append(item)
 
     def assign_requests(self, cursor, connection, route_id):
+        global routeListIDExternal
+        global routeListNumber
         np.random.seed(int(datetime.now().timestamp()))
         if self.route_list_id == -1:
             departure = date.today()+timedelta(days=nearest(self.departure, self.days))
-            id_external = ''.join([str(np.random.randint(0, 10)) for _ in range(8)])
-            list_number = ''.join([str(np.random.randint(0, 10)) for _ in range(10)])
+            routeListIDExternal += 1
+            routeListNumber += 1
             cursor.execute("INSERT INTO route_lists (routeListIDExternal, dataSourceID, routeListNumber, "
                            "creationDate, departureDate, status, routeID) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                           [id_external, "LOGIST_1C", list_number, date.today().strftime("%Y-%m-%d"),
+                           [routeListIDExternal, "LOGIST_1C", routeListNumber, date.today().strftime("%Y-%m-%d"),
                             departure.strftime("%Y-%m-%d"), "CREATED", route_id])
             connection.commit()
             cursor.execute("SELECT routeListID FROM route_lists WHERE routeID=%s", [route_id])
@@ -172,20 +182,23 @@ class Route:
             if self.check_capacities(item):
                 self.urgent.append(item)
                 self.decrease_capacities(item)
-                cursor.execute("UPDATE requests SET routeListID=%s WHERE requestID=%s", [self.route_list_id, item[0]])
+                cursor.execute("UPDATE requests SET routeListID=%s "
+                               "WHERE requestID=%s", [self.route_list_id, item[0]])
                 connection.commit()
         for item in sorted(self.assigned, key=lambda x: x[3], reverse=True):
             if self.check_capacities(item):
                 self.decrease_capacities(item)
             else:
                 self.assigned.remove(item)
-                cursor.execute("UPDATE requests SET routeListID=%s WHERE requestID=%s", [None, item[0]])
+                cursor.execute("UPDATE requests SET routeListID=%s "
+                               "WHERE requestID=%s", [None, item[0]])
                 connection.commit()
         for item in sorted(self.to_assign, key=lambda x: x[3], reverse=True):
             if self.check_capacities(item):
                 self.assigned.append(item)
                 self.decrease_capacities(item)
-                cursor.execute("UPDATE requests SET routeListID=%s WHERE requestID=%s", [self.route_list_id, item[0]])
+                cursor.execute("UPDATE requests SET routeListID=%s "
+                               "WHERE requestID=%s", [self.route_list_id, item[0]])
                 connection.commit()
 
     def check_capacities(self, item):
@@ -215,3 +228,15 @@ class Route:
         data = cursor.fetchone()
         self.departure = data[0]
         self.days = data[1]
+
+    def update_status(self, cursor, connection):
+        today = date.today().weekday()
+        now = datetime.now().time()
+        now = timedelta(hours=now.hour, minutes=now.minute, seconds=now.second, microseconds=now.microsecond)
+        for i in self.days:
+            if day_to_int[i] - today == 0 and self.departure - now < timedelta(hours=1):
+                cursor.execute("UPDATE route_lists SET status=%s "
+                               "WHERE routeListID=%s", ["APPROVED", self.route_list_id])
+                cursor.execute("UPDATE requests SET requestStatusID=%s "
+                               "WHERE routeListID=%s", ["TRANSPORTATION", self.route_list_id])
+        connection.commit()

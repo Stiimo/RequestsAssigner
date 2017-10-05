@@ -3,10 +3,15 @@
 import mysql.connector as mc
 from route import *
 
+
 if __name__ == "__main__":
-    connection = mc.connect(host="localhost", user="root", db="", password="aftR179Kp")
+    connection = mc.connect(host="localhost", user="root", db="", password="aftR179Kp", port=3306)
     cursor = connection.cursor()
     cursor.execute("USE `transmaster_transport_db`")
+    cursor.execute("SELECT MAX(routeListIDExternal) FROM route_lists")
+    routeListIDExternal = int(cursor.fetchone()[0])
+    cursor.execute("SELECT MAX(routeListNumber) FROM route_lists")
+    routeListNumber = int(cursor.fetchone()[0])
     empty_requests = get_empty_requests(cursor)
     route_lists = get_route_lists(cursor)
     routes = dict()
@@ -47,4 +52,6 @@ if __name__ == "__main__":
             routes[route_id].to_urgent.append(item)
     for id, route in routes.items():
         route.assign_requests(cursor, connection, id)
+    for route in routes.values():
+        route.update_status()
     connection.close()
