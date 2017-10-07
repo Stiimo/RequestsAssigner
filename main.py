@@ -5,14 +5,17 @@ from route import *
 
 
 if __name__ == "__main__":
+    global routeListIDExternal
+    global routeListNumber
     connection = mc.connect(host="localhost", user="root", db="", password="aftR179Kp", port=3306)
     cursor = connection.cursor()
     cursor.execute("USE `transmaster_transport_db`")
+    keys = []
     cursor.execute("SELECT MAX(routeListIDExternal) FROM route_lists")
-    routeListIDExternal = int(cursor.fetchone()[0])
+    keys.append(cursor.fetchone()[0] or "00000000")
     cursor.execute("SELECT MAX(routeListNumber) FROM route_lists")
-    routeListNumber = int(cursor.fetchone()[0])
-    empty_requests = get_empty_requests(cursor)
+    keys.append(cursor.fetchone()[0] or "0000000000")
+    empty_requests = get_empty_requests(connection, cursor)
     route_lists = get_route_lists(cursor)
     routes = dict()
     for item in route_lists:
@@ -51,7 +54,7 @@ if __name__ == "__main__":
         else:
             routes[route_id].to_urgent.append(item)
     for id, route in routes.items():
-        route.assign_requests(cursor, connection, id)
+        route.assign_requests(cursor, connection, id, keys)
     for route in routes.values():
-        route.update_status()
+        route.update_status(cursor, connection)
     connection.close()

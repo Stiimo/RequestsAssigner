@@ -13,11 +13,27 @@ day_to_int = {
     "saturday": 5,
     "sunday": 6
 }
-routeListIDExternal = 0
-routeListNumber = 0
+routeListIDExternal = ""
+routeListNumber = ""
 
 
-def get_empty_requests(cursor):
+def increase(s):
+    s = [c for c in s]
+    for i in reversed(range(len(s))):
+        d = 0
+        if s[i] == '9':
+            s[i] = 'A'
+        elif s[i] == 'Z':
+            s[i] = '0'
+            d = 1
+        else:
+            s[i] = chr(ord(s[i])+1)
+        if d == 0:
+            break
+    return ''.join(s)
+
+
+def get_empty_requests(connection, cursor):
     cursor.execute("SELECT requestID, destinationPointID, deliveryDate, "
                    "boxQty, weight, volume, storage "
                    "FROM requests WHERE (requestStatusID=%s OR requestStatusID=%s) AND routeListID IS NULL",
@@ -29,14 +45,19 @@ def get_empty_requests(cursor):
         cursor.execute("SELECT point_id FROM storages_to_points WHERE storage=%s", [request[6]])
         try:
             request[6] = cursor.fetchone()[0]
+            cursor.execute("UPDATE requests SET warehousePointID=%s WHERE requestID=%s",
+                           [request[6], request[0]])
         except:
             requests.remove(request)
         if request[2] is None:
             cursor.execute("SELECT requestDate FROM requests WHERE requestID=%s", [request[0]])
             date = cursor.fetchone()[0]
             request[2] = datetime(date.year, date.month, date.day) + timedelta(days=2)
+            cursor.execute("UPDATE requests SET deliveryDate=%s WHERE requestID=%s",
+                           [request[2], request[0]])
         if request[3] is None:
             request[3] = 1 # TODO check
+    connection.commit()
     return requests
 
 
@@ -162,17 +183,15 @@ class Route:
                 else:
                     self.to_urgent.append(item)
 
-    def assign_requests(self, cursor, connection, route_id):
-        global routeListIDExternal
-        global routeListNumber
+    def assign_requests(self, cursor, connection, route_id, keys):
         np.random.seed(int(datetime.now().timestamp()))
         if self.route_list_id == -1:
             departure = date.today()+timedelta(days=nearest(self.departure, self.days))
-            routeListIDExternal += 1
-            routeListNumber += 1
+            keys[0] = increase(keys[0])
+            keys[1] = increase(keys[1])
             cursor.execute("INSERT INTO route_lists (routeListIDExternal, dataSourceID, routeListNumber, "
                            "creationDate, departureDate, status, routeID) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                           [routeListIDExternal, "LOGIST_1C", routeListNumber, date.today().strftime("%Y-%m-%d"),
+                           [keys[0], "LOGIST_1C", keys[1], date.today().strftime("%Y-%m-%d"),
                             departure.strftime("%Y-%m-%d"), "CREATED", route_id])
             connection.commit()
             cursor.execute("SELECT routeListID FROM route_lists WHERE routeID=%s", [route_id])
