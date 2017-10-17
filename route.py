@@ -84,8 +84,19 @@ def get_possible_routes(cursor, request):
 
 
 def in_time(cursor, request, route_id, cur_time):
-    # TODO get time from table
-    cur_time += timedelta(minutes=1440)
+    cursor.execute("SELECT pointID FROM route_points "
+                   "WHERE routeID=%s", [route_id])
+    route = cursor.fetchall()
+    if route == []:
+        cursor.execute("SELECT distance FROM distances_between_points "
+                       "WHERE pointIDFirst=%s and pointIDSecond=%s", [route[0][0], route[1][0]])
+        dist = cursor.fetchone()
+    else:
+        dist = None
+    if dist is None:
+        cur_time += timedelta(minutes=1440)
+    else:
+        cur_time += timedelta(minutes=dist[0]*60/45)
     return cur_time <= request[2]
 
 def nearest(departure, days):
