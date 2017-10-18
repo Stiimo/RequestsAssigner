@@ -17,6 +17,8 @@ routeListIDExternal = ""
 routeListNumber = ""
 
 
+
+
 def increase(s):
     s = [c for c in s]
     for i in reversed(range(len(s))):
@@ -36,7 +38,7 @@ def increase(s):
 def get_empty_requests(connection, cursor):
     cursor.execute("SELECT requestID, destinationPointID, deliveryDate, "
                    "boxQty, weight, volume, storage "
-                   "FROM requests WHERE (requestStatusID=%s OR requestStatusID=%s) AND routeListID IS NULL",
+                   "FROM requests WHERE requestDate >= NOW() - INTERVAL 2 DAY AND (requestStatusID=%s OR requestStatusID=%s) AND routeListID  IS NULL",
                    ("CHECK_PASSED", "READY"))
     requests = cursor.fetchall()
     for i in range(len(requests)):
@@ -58,6 +60,7 @@ def get_empty_requests(connection, cursor):
         if request[3] is None:
             request[3] = 1 # TODO check
     connection.commit()
+    print("Finished updates for empty requests")
     return requests
 
 
@@ -247,7 +250,7 @@ class Route:
             boxQty += (item[3] or 0)
             weight += (item[4] or 0)
             volume += (item[5] or 0)
-        cursor.execute("SELECT boxQty, weight, volume FROM routes WHERE routeID=%s", [self.route_id])
+        cursor.execute("SELECT box_limit, weight_limit, volume_limit FROM routes WHERE routeID=%s", [self.route_id])
         capacities = cursor.fetchone()
         self.boxQty = (capacities[0] or 1) - boxQty
         self.weight = (capacities[1] or 1) - weight

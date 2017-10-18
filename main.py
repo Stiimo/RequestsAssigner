@@ -1,5 +1,6 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
+from tqdm import tqdm
 import mysql.connector as mc
 from route import *
 
@@ -10,20 +11,25 @@ if __name__ == "__main__":
     connection = mc.connect(host="localhost", user="root", db="", password="aftR179Kp", port=3306)
     cursor = connection.cursor()
     cursor.execute("USE `transmaster_transport_db`")
+    print("Connection established")
     keys = []
     cursor.execute("SELECT MAX(routeListIDExternal) FROM route_lists")
     keys.append(cursor.fetchone()[0] or "00000000")
     cursor.execute("SELECT MAX(routeListNumber) FROM route_lists")
     keys.append(cursor.fetchone()[0] or "0000000000")
-    empty_requests = get_empty_requests(connection, cursor)
+    empty_requests = get_empty_requests(connection, cursor) #
+    print("Got {} empty requests".format(len(empty_requests)))
     route_lists = get_route_lists(cursor)
+    print("Got {} route lists".format(len(route_lists)))
     routes = dict()
-    for item in route_lists:
+    print("Creating routes from route lists")
+    for item in tqdm(route_lists):
         routes[item[1]] = Route(cursor, item[1], item[0])
         routes[item[1]].filter_requests(cursor, empty_requests)
         routes[item[1]].get_requests(cursor)
         routes[item[1]].calculate_capacities(cursor)
-    for item in empty_requests:
+    print("Creating routes without route lists")
+    for item in tqdm(empty_requests):
         possible_routes = get_possible_routes(cursor, item)
         if len(possible_routes) == 0:
             continue
@@ -53,8 +59,11 @@ if __name__ == "__main__":
             routes[route_id].to_assign.append(item)
         else:
             routes[route_id].to_urgent.append(item)
-    for id, route in routes.items():
+    print("Asssigning...")
+    for id, route in tqdm(routes.items()):
         route.assign_requests(cursor, connection, id, keys)
-    for route in routes.values():
+    print("Updating statuses")
+    for route in tqdm(routes.values()):
         route.update_status(cursor, connection)
+
     connection.close()
