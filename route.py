@@ -2,7 +2,6 @@
 
 from datetime import date, datetime, timedelta, time
 import numpy as np
-from atomic_id import *
 
 day_to_int = {
     "monday": 0,
@@ -18,7 +17,8 @@ day_to_int = {
 def get_empty_requests(connection, cursor):
     cursor.execute("SELECT requestID, destinationPointID, deliveryDate, "
                    "boxQty, weight, volume, storage "
-                   "FROM requests WHERE requestDate >= NOW() - INTERVAL 2 DAY AND (requestStatusID=%s OR requestStatusID=%s) AND routeListID  IS NULL",
+                   "FROM requests WHERE requestDate >= NOW() - INTERVAL 2 DAY AND "
+                   "(requestStatusID=%s OR requestStatusID=%s) AND routeListID  IS NULL",
                    ("CHECK_PASSED", "READY"))
     requests = cursor.fetchall()
     for i in range(len(requests)):
@@ -38,7 +38,7 @@ def get_empty_requests(connection, cursor):
             cursor.execute("UPDATE requests SET deliveryDate=%s WHERE requestID=%s",
                            [request[2], request[0]])
         if request[3] is None:
-            request[3] = 1  # TODO check
+            request[3] = 1
     connection.commit()
     print("Finished updates for empty requests")
     return requests
@@ -103,7 +103,7 @@ class Route:
         self.route_list_id = route_list_id or -1
         self.weight = 0
         self.volume = 0
-        self.boxQty = 0
+        self.box_qty = 0
         self.urgent = list()
         self.assigned = list()
         self.to_urgent = list()
@@ -215,11 +215,11 @@ class Route:
                 connection.commit()
 
     def check_capacities(self, item):
-        return self.boxQty - (item[3] or 0) >= 0 and self.weight - (item[4] or 0) >= 0 and self.volume - (
+        return self.box_qty - (item[3] or 0) >= 0 and self.weight - (item[4] or 0) >= 0 and self.volume - (
             item[5] or 0) >= 0
 
     def decrease_capacities(self, item):
-        self.boxQty -= (item[3] or 0)
+        self.box_qty -= (item[3] or 0)
         self.weight -= (item[4] or 0)
         self.volume -= (item[5] or 0)
 
@@ -233,7 +233,7 @@ class Route:
             volume += (item[5] or 0)
         cursor.execute("SELECT box_limit, weight_limit, volume_limit FROM routes WHERE routeID=%s", [self.route_id])
         capacities = cursor.fetchone()
-        self.boxQty = (capacities[0] or 1) - box_qty
+        self.box_qty = (capacities[0] or 1) - box_qty
         self.weight = (capacities[1] or 1) - weight
         self.volume = (capacities[2] or 1) - volume
 

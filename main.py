@@ -3,11 +3,11 @@
 from tqdm import tqdm
 import mysql.connector as mc
 from route import *
-from atomic_id import *
+from atomic_id import AtomicId
 
 
 if __name__ == "__main__":
-    connection = mc.connect(host="localhost", user="root", db="", password="aftR179Kp", port=8889)
+    connection = mc.connect(host="localhost", user="root", db="", password="aftR179Kp", port=3306)
     cursor = connection.cursor()
     cursor.execute("USE `transmaster_transport_db`")
     print("Connection established")
