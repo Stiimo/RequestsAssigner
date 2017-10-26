@@ -7,14 +7,14 @@ from atomic_id import *
 
 
 if __name__ == "__main__":
-    connection = mc.connect(host="localhost", user="root", db="", password="aftR179Kp", port=8889)
+    connection = mc.connect(host="localhost", user="root", db="", password="root", port=3306)
     cursor = connection.cursor()
     cursor.execute("USE `transmaster_transport_db`")
     print("Connection established")
 
-    cursor.execute("SELECT MAX(routeListIDExternal) FROM route_lists")
+    cursor.execute("SELECT MAX(routeListIDExternal) FROM route_lists WHERE dataSourceID='ADMIN_PAGE'")
     atomic_route_list_id_external = AtomicId(cursor.fetchone()[0] or "00000000")
-    cursor.execute("SELECT MAX(routeListNumber) FROM route_lists")
+    cursor.execute("SELECT MAX(routeListNumber) FROM route_lists WHERE dataSourceID='ADMIN_PAGE'")
     atomic_route_list_number = AtomicId(cursor.fetchone()[0] or "0000000000")
 
     empty_requests = get_empty_requests(connection, cursor)
