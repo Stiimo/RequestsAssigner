@@ -18,12 +18,13 @@ day_to_int = {
 def get_empty_requests(connection, cursor):
     cursor.execute("SELECT requestID, destinationPointID, deliveryDate, "
                    "boxQty, weight, volume, storage "
-                   "FROM requests WHERE requestDate >= NOW() - INTERVAL 2 DAY AND (requestStatusID=%s OR requestStatusID=%s) AND routeListID  IS NULL",
+                   "FROM requests WHERE requestDate >= NOW() - INTERVAL 2 DAY AND (requestStatusID=%s OR requestStatusID=%s) AND routeListID  IS NULL AND storage IS NOT NULL",
                    ("CHECK_PASSED", "READY"))
     requests = cursor.fetchall()
     for i in range(len(requests)):
         requests[i] = list(requests[i])
     for request in list(requests):
+        print(request[6])
         cursor.execute("SELECT point_id FROM storages_to_points WHERE storage=%s", [request[6]])
         try:
             request[6] = cursor.fetchone()[0]
@@ -184,7 +185,7 @@ class Route:
             departure = date.today() + timedelta(days=nearest(self.departure, self.days))
             cursor.execute("INSERT INTO route_lists (routeListIDExternal, dataSourceID, routeListNumber, "
                            "creationDate, departureDate, status, routeID) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                           [atomic_route_list_id_external.next_id(), "ADMIN_PAGE", atomic_route_list_number.next_id(),
+                           [atomic_route_list_id_external.next_id(), "REQUESTS_ASSIGNER", atomic_route_list_number.next_id(),
                             date.today().strftime("%Y-%m-%d"),
                             departure.strftime("%Y-%m-%d"), "CREATED", route_id])
             connection.commit()
