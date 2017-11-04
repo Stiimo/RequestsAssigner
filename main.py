@@ -5,9 +5,14 @@ import mysql.connector as mc
 from route import *
 from atomic_id import AtomicId
 import collation_converter
+import sys
 
 
 if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        warehouse_id = -1
+    else:
+        warehouse_id = int(sys.argv[1])
     connection = mc.connect(converter_class = collation_converter.ColConv, host="localhost", user="root", db="", password="root", port=3306, raw = False)
     cursor = connection.cursor()
     cursor.execute("USE `transmaster_transport_db`")
@@ -18,7 +23,7 @@ if __name__ == "__main__":
     cursor.execute("SELECT MAX(routeListNumber) FROM route_lists WHERE dataSourceID='REQUESTS_ASSIGNER'")
     atomic_route_list_number = AtomicId(cursor.fetchone()[0] or "LSS-0000000000")
 
-    empty_requests = get_empty_requests(connection, cursor)
+    empty_requests = get_empty_requests(connection, cursor, warehouse_id)
     print("Got {} empty requests".format(len(empty_requests)))
     route_lists = get_route_lists(cursor)
     print("Got {} route lists".format(len(route_lists)))

@@ -14,7 +14,7 @@ day_to_int = {
 }
 
 
-def get_empty_requests(connection, cursor):
+def get_empty_requests(connection, cursor, warehouse_id=-1):
     cursor.execute("SELECT requestID, destinationPointID, deliveryDate, "
                    "boxQty, weight, volume, storage "
                    "FROM requests WHERE requestDate >= NOW() - INTERVAL 2 DAY AND "
@@ -31,6 +31,8 @@ def get_empty_requests(connection, cursor):
             cursor.execute("UPDATE requests SET warehousePointID=%s WHERE requestID=%s",
                            [request[6], request[0]])
         except:
+            requests.remove(request)
+        if warehouse_id != -1 and request[6] != warehouse_id:
             requests.remove(request)
         if request[2] is None:
             cursor.execute("SELECT requestDate FROM requests WHERE requestID=%s", [request[0]])
