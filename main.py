@@ -4,18 +4,19 @@ from tqdm import tqdm
 import mysql.connector as mc
 from route import *
 from atomic_id import AtomicId
+import collation_converter
 
 
 if __name__ == "__main__":
-    connection = mc.connect(host="localhost", user="root", db="", password="aftR179Kp", port=3306)
+    connection = mc.connect(converter_class = collation_converter.ColConv, host="localhost", user="root", db="", password="root", port=3306, raw = False)
     cursor = connection.cursor()
     cursor.execute("USE `transmaster_transport_db`")
     print("Connection established")
 
-    cursor.execute("SELECT MAX(routeListIDExternal) FROM route_lists")
-    atomic_route_list_id_external = AtomicId(cursor.fetchone()[0] or "00000000")
-    cursor.execute("SELECT MAX(routeListNumber) FROM route_lists")
-    atomic_route_list_number = AtomicId(cursor.fetchone()[0] or "0000000000")
+    cursor.execute("SELECT MAX(routeListIDExternal) FROM route_lists WHERE dataSourceID='REQUESTS_ASSIGNER'")
+    atomic_route_list_id_external = AtomicId(cursor.fetchone()[0] or "LSS-00000000")
+    cursor.execute("SELECT MAX(routeListNumber) FROM route_lists WHERE dataSourceID='REQUESTS_ASSIGNER'")
+    atomic_route_list_number = AtomicId(cursor.fetchone()[0] or "LSS-0000000000")
 
     empty_requests = get_empty_requests(connection, cursor)
     print("Got {} empty requests".format(len(empty_requests)))

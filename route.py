@@ -18,12 +18,13 @@ def get_empty_requests(connection, cursor):
     cursor.execute("SELECT requestID, destinationPointID, deliveryDate, "
                    "boxQty, weight, volume, storage "
                    "FROM requests WHERE requestDate >= NOW() - INTERVAL 2 DAY AND "
-                   "(requestStatusID=%s OR requestStatusID=%s) AND routeListID  IS NULL",
+                   "(requestStatusID=%s OR requestStatusID=%s) AND routeListID  IS NULL AND storage IS NOT NULL",
                    ("CHECK_PASSED", "READY"))
     requests = cursor.fetchall()
     for i in range(len(requests)):
         requests[i] = list(requests[i])
     for request in list(requests):
+        print(request[6])
         cursor.execute("SELECT point_id FROM storages_to_points WHERE storage=%s", [request[6]])
         try:
             request[6] = cursor.fetchone()[0]
@@ -103,7 +104,7 @@ class Route:
         self.route_list_id = route_list_id or -1
         self.weight = 0
         self.volume = 0
-        self.box_qty = 0
+        self.boxQty = 0
         self.urgent = list()
         self.assigned = list()
         self.to_urgent = list()
@@ -215,11 +216,11 @@ class Route:
                 connection.commit()
 
     def check_capacities(self, item):
-        return self.box_qty - (item[3] or 0) >= 0 and self.weight - (item[4] or 0) >= 0 and self.volume - (
+        return self.boxQty - (item[3] or 0) >= 0 and self.weight - (item[4] or 0) >= 0 and self.volume - (
             item[5] or 0) >= 0
 
     def decrease_capacities(self, item):
-        self.box_qty -= (item[3] or 0)
+        self.boxQty -= (item[3] or 0)
         self.weight -= (item[4] or 0)
         self.volume -= (item[5] or 0)
 
@@ -233,7 +234,7 @@ class Route:
             volume += (item[5] or 0)
         cursor.execute("SELECT box_limit, weight_limit, volume_limit FROM routes WHERE routeID=%s", [self.route_id])
         capacities = cursor.fetchone()
-        self.box_qty = (capacities[0] or 1) - box_qty
+        self.boxQty = (capacities[0] or 1) - box_qty
         self.weight = (capacities[1] or 1) - weight
         self.volume = (capacities[2] or 1) - volume
 
