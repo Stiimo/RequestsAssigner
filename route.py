@@ -32,8 +32,10 @@ def get_empty_requests(connection, cursor, warehouse_id=-1):
                            [request[6], request[0]])
         except:
             requests.remove(request)
+            continue
         if warehouse_id != -1 and request[6] != warehouse_id:
             requests.remove(request)
+            continue
         if request[2] is None:
             cursor.execute("SELECT requestDate FROM requests WHERE requestID=%s", [request[0]])
             requestDate = cursor.fetchone()[0]
