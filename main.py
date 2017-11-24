@@ -13,7 +13,8 @@ if __name__ == "__main__":
         warehouse_id = -1
     else:
         warehouse_id = int(sys.argv[1])
-    connection = mc.connect(converter_class = collation_converter.ColConv, host="localhost", user="root", db="", password="root", port=3306, raw = False)
+    connection = mc.connect(converter_class=collation_converter.ColConv, host="localhost",
+                            user="root", db="", password="root", port=3306, raw=False)
     cursor = connection.cursor()
     cursor.execute("USE `transmaster_transport_db`")
     print("Connection established")
@@ -28,12 +29,14 @@ if __name__ == "__main__":
     route_lists = get_route_lists(cursor)
     print("Got {} route lists".format(len(route_lists)))
     routes = dict()
+    cursor.execute("SELECT routeID, box_limit, weight_limit, volume_limit FROM routes")
+    capacities = dict((i[0], i[1:]) for i in cursor.fetchall())
     print("Creating routes from route lists")
     for item in tqdm(route_lists):
         routes[item[1]] = Route(cursor, item[1], item[0])
         routes[item[1]].filter_requests(cursor, empty_requests)
         routes[item[1]].get_requests(cursor)
-        routes[item[1]].calculate_capacities(cursor)
+        routes[item[1]].calculate_capacities(capacities[item[1]])
     print("Creating routes without route lists")
     for item in tqdm(empty_requests):
         possible_routes = get_possible_routes(cursor, item)
@@ -42,7 +45,7 @@ if __name__ == "__main__":
         route_id = possible_routes[0][0]
         if route_id not in routes.keys():
             routes[route_id] = Route(cursor, route_id)
-            routes[route_id].calculate_capacities(cursor)
+            routes[route_id].calculate_capacities(capacities)
         routes_count = 0
         for route in possible_routes:
             days_count = 0

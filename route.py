@@ -228,7 +228,7 @@ class Route:
         self.weight -= (item[4] or 0)
         self.volume -= (item[5] or 0)
 
-    def calculate_capacities(self, cursor):
+    def calculate_capacities(self, capacities):
         weight = 0
         volume = 0
         box_qty = 0
@@ -236,8 +236,6 @@ class Route:
             box_qty += (item[3] or 0)
             weight += (item[4] or 0)
             volume += (item[5] or 0)
-        cursor.execute("SELECT box_limit, weight_limit, volume_limit FROM routes WHERE routeID=%s", [self.route_id])
-        capacities = cursor.fetchone()
         self.boxQty = (capacities[0] or 1) - box_qty
         self.weight = (capacities[1] or 1) - weight
         self.volume = (capacities[2] or 1) - volume
