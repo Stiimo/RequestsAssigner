@@ -6,15 +6,17 @@ from route import *
 from atomic_id import AtomicId
 import collation_converter
 import sys
-
+import json
+from json_serializer import RouteDecoder, RouteEncoder
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         warehouse_id = -1
     else:
         warehouse_id = int(sys.argv[1])
-    connection = mc.connect(converter_class=collation_converter.ColConv, host="localhost",
-                            user="root", db="", password="root", port=3306, raw=False)
+    #connection = mc.connect(converter_class=collation_converter.ColConv, host="localhost",
+    #                        user="root", db="", password="aftR179Kp", port=3306, raw=False)
+    connection = mc.connect(host="localhost", user="root", db="", password="aftR179Kp", port=3306, raw=False)
     cursor = connection.cursor()
     cursor.execute("USE `transmaster_transport_db`")
     print("Connection established")
@@ -28,15 +30,19 @@ if __name__ == "__main__":
     print("Got {} empty requests".format(len(empty_requests)))
     route_lists = get_route_lists(cursor)
     print("Got {} route lists".format(len(route_lists)))
-    routes = dict()
     cursor.execute("SELECT routeID, box_limit, weight_limit, volume_limit FROM routes")
     capacities = dict((i[0], i[1:]) for i in cursor.fetchall())
     print("Creating routes from route lists")
-    for item in tqdm(route_lists):
+    try:
+        with open("./route_lists") as f:
+            routes = json.load(f, cls=RouteDecoder)
+    except:
+        routes = dict()
+    """for item in tqdm(route_lists):
         routes[item[1]] = Route(cursor, item[1], item[0])
         routes[item[1]].filter_requests(cursor, empty_requests)
         routes[item[1]].get_requests(cursor)
-        routes[item[1]].calculate_capacities(capacities[item[1]])
+        routes[item[1]].calculate_capacities(capacities[item[1]])"""
     print("Creating routes without route lists")
     for item in tqdm(empty_requests):
         possible_routes = get_possible_routes(cursor, item)
@@ -45,7 +51,7 @@ if __name__ == "__main__":
         route_id = possible_routes[0][0]
         if route_id not in routes.keys():
             routes[route_id] = Route(cursor, route_id)
-            routes[route_id].calculate_capacities(capacities)
+            routes[route_id].calculate_capacities(capacities[route_id])
         routes_count = 0
         for route in possible_routes:
             days_count = 0
@@ -72,7 +78,10 @@ if __name__ == "__main__":
     for id, route in tqdm(routes.items()):
         route.assign_requests(cursor, connection, id, atomic_route_list_id_external, atomic_route_list_number)
     print("Updating statuses")
-    for route in tqdm(routes.values()):
-        route.update_status(cursor, connection)
-
+    for route_id, route in tqdm(list(routes.items())):
+        if route.update_status(cursor, connection):
+            routes.pop(route_id)
+    print("Dumping route lists")
+    with open("./route_lists", "w") as f:
+        tqdm(json.dump(routes, f, cls=RouteEncoder))
     connection.close()

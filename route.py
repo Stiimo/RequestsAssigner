@@ -115,7 +115,8 @@ class Route:
         self.to_assign = list()
         self.departure = None
         self.days = None
-        self.set_departure(cursor)
+        if cursor is not None:
+            self.set_departure(cursor)
 
     def get_requests(self, cursor):
         cursor.execute("SELECT requestID, destinationPointID, deliveryDate, "
@@ -250,10 +251,13 @@ class Route:
         today = date.today().weekday()
         now = datetime.now().time()
         now = timedelta(hours=now.hour, minutes=now.minute, seconds=now.second, microseconds=now.microsecond)
+        flag = False
         for i in self.days:
             if day_to_int[i] - today == 0 and self.departure - now < timedelta(hours=1):
                 cursor.execute("UPDATE route_lists SET status=%s "
                                "WHERE routeListID=%s", ["APPROVED", self.route_list_id])
                 cursor.execute("UPDATE requests SET requestStatusID=%s "
                                "WHERE routeListID=%s", ["TRANSPORTATION", self.route_list_id])
+                flag = True
         connection.commit()
+        return flag
