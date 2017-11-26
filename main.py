@@ -45,7 +45,7 @@ if __name__ == "__main__":
         route_id = possible_routes[0][0]
         if route_id not in routes.keys():
             routes[route_id] = Route(cursor, route_id)
-            routes[route_id].calculate_capacities(capacities)
+            routes[route_id].calculate_capacities(capacities[route_id])
         routes_count = 0
         for route in possible_routes:
             days_count = 0
