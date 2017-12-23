@@ -190,7 +190,7 @@ class Route:
             departure = date.today() + timedelta(days=nearest(self.departure, self.days))
             cursor.execute("INSERT INTO route_lists (routeListIDExternal, dataSourceID, routeListNumber, "
                            "creationDate, departureDate, status, routeID) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                           [atomic_route_list_id_external.next_id(), "LOGIST_1C", atomic_route_list_number.next_id(),
+                           [atomic_route_list_id_external.next_id(), "REQUESTS_ASSIGNER", atomic_route_list_number.next_id(),
                             date.today().strftime("%Y-%m-%d"),
                             departure.strftime("%Y-%m-%d"), "CREATED", route_id])
             connection.commit()

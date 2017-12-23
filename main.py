@@ -38,11 +38,6 @@ if __name__ == "__main__":
             routes = json.load(f, cls=RouteDecoder)
     except:
         routes = dict()
-    """for item in tqdm(route_lists):
-        routes[item[1]] = Route(cursor, item[1], item[0])
-        routes[item[1]].filter_requests(cursor, empty_requests)
-        routes[item[1]].get_requests(cursor)
-        routes[item[1]].calculate_capacities(capacities[item[1]])"""
     print("Creating routes without route lists")
     for item in tqdm(empty_requests):
         possible_routes = get_possible_routes(cursor, item)
@@ -83,5 +78,5 @@ if __name__ == "__main__":
             routes.pop(route_id)
     print("Dumping route lists")
     with open("./route_lists", "w") as f:
-        tqdm(json.dump(routes, f, cls=RouteEncoder))
+        json.dump(routes, f, cls=RouteEncoder)
     connection.close()
